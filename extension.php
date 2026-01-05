@@ -9,11 +9,15 @@ class AutoTTLExtension extends Minz_Extension
 
     private const STATS_COUNT = 100;
 
+    private const STATS_DAYS = 30;
+
     public int $defaultTTL;
 
     public int $maxTTL;
 
     public int $statsCount;
+
+    public int $statsDays;
 
     /**
      * @var AutoTTLStats
@@ -42,11 +46,16 @@ class AutoTTLExtension extends Minz_Extension
             FreshRSS_Context::userConf()->_attribute('auto_ttl_stats_count', self::STATS_COUNT);
         }
 
+        if (!FreshRSS_Context::userConf()->hasParam('auto_ttl_stats_days')) {
+            FreshRSS_Context::userConf()->_attribute('auto_ttl_stats_days', self::STATS_DAYS);
+        }
+
         FreshRSS_Context::userConf()->save();
 
         $this->defaultTTL = FreshRSS_Context::userConf()->attributeInt('ttl_default');
         $this->maxTTL = FreshRSS_Context::userConf()->attributeInt('auto_ttl_max_ttl');
         $this->statsCount = FreshRSS_Context::userConf()->attributeInt('auto_ttl_stats_count');
+        $this->statsDays = FreshRSS_Context::userConf()->attributeInt('auto_ttl_stats_days');
     }
 
     /*
@@ -59,6 +68,7 @@ class AutoTTLExtension extends Minz_Extension
         if (Minz_Request::isPost()) {
             FreshRSS_Context::userConf()->_attribute('auto_ttl_max_ttl', Minz_Request::paramInt('auto_ttl_max_ttl'));
             FreshRSS_Context::userConf()->_attribute('auto_ttl_stats_count', Minz_Request::paramInt('auto_ttl_stats_count'));
+            FreshRSS_Context::userConf()->_attribute('auto_ttl_stats_days', Minz_Request::paramInt('auto_ttl_stats_days'));
             FreshRSS_Context::userConf()->save();
         }
     }
@@ -66,7 +76,7 @@ class AutoTTLExtension extends Minz_Extension
     public function getStats(): AutoTTLStats
     {
         if ($this->stats === null) {
-            $this->stats = new AutoTTLStats($this->defaultTTL, $this->maxTTL, $this->statsCount);
+            $this->stats = new AutoTTLStats($this->defaultTTL, $this->maxTTL, $this->statsCount, $this->statsDays);
         }
 
         return $this->stats;

@@ -34,7 +34,7 @@ Based on this analysis, it calculates a dynamic TTL that adapts to the current t
 ### Phase 1: Data Collection and Analysis
 
 1. **Data Retrieval**
-   - Fetch feed entry data from the database for the last 30 days
+   - Fetch feed entry data from the database for the last N days (configurable, default: 30 days)
    - Sort entries chronologically and calculate time intervals between adjacent entries
 
 2. **Data Quality Assessment**
@@ -107,6 +107,7 @@ The main configurable values are:
 
 - **Max TTL**: The maximum time-to-live interval for feed updates
 - **Statistics table rows**: Number of feeds to display in the statistics table
+- **Statistics days**: Number of days to fetch feed entry data from database for analysis (default: 30 days, range: 1-365 days)
 
 Feeds that use the default TTL are updated at an interval between the default and max TTL, dynamically adjusted based on their update patterns.
 

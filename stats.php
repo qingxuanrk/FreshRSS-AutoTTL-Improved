@@ -63,6 +63,11 @@ class AutoTTLStats extends Minz_ModelPdo
     private $statsCount;
 
     /**
+     * @var int
+     */
+    private $statsDays;
+
+    /**
      * @var array<string, FeedUpdatePattern>
      */
     private static $patternCache = [];
@@ -77,13 +82,14 @@ class AutoTTLStats extends Minz_ModelPdo
      */
     private const CACHE_EXPIRY = 3600;
 
-    public function __construct(int $defaultTTL, int $maxTTL, int $statsCount)
+    public function __construct(int $defaultTTL, int $maxTTL, int $statsCount, int $statsDays = 30)
     {
         parent::__construct();
 
         $this->defaultTTL = $defaultTTL;
         $this->maxTTL = $maxTTL;
         $this->statsCount = $statsCount;
+        $this->statsDays = $statsDays;
     }
 
     /**
@@ -536,9 +542,9 @@ SQL;
 
     private function getStatsCutoff(): int
     {
-        // Get entry stats from last 30 days only
+        // Get entry stats from last N days only
         // so we don't depend on old entries and purge policy so much.
-        return time() - 30 * 24 * 60 * 60;
+        return time() - $this->statsDays * 24 * 60 * 60;
     }
 
     public function humanIntervalFromSeconds(int $seconds): string
