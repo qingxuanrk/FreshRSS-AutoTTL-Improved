@@ -1,7 +1,7 @@
 {
-  "name": "AutoTTL",
-  "author": "Magnus Kokk",
-  "description": "A FreshRSS extension for automatic feed refresh TTL based on the average frequency of entries.",
+  "name": "AutoTTL-Improved",
+  "author": "qingxuanrk",
+  "description": "Intelligent dynamic TTL calculation for FreshRSS feeds. Analyzes update patterns by time slots, weekday/weekend differences, and update intervals to optimize refresh frequency automatically.",
   "version": "0.6.1",
   "entrypoint": "AutoTTL",
   "type": "user"

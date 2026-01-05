@@ -104,7 +104,7 @@ class AutoTTLExtension extends Minz_Extension
         if ($timeSinceLastUpdate < $ttl) {
             Minz_Log::debug(
                 sprintf(
-                    'AutoTTL: skip feed %d (%s, last update %s): adjusted TTL (%ds) not exceeded yet',
+                    'AutoTTL: skip feed %d (%s, last update %s): dynamic TTL (%ds) not exceeded yet',
                     $feed->id(),
                     $feed->name(),
                     date('r', $feed->lastUpdate()),
@@ -117,13 +117,16 @@ class AutoTTLExtension extends Minz_Extension
 
         Minz_Log::debug(
             sprintf(
-                'AutoTTL: updating feed %d (%s, last update %s, adjusted TTL %ds)',
+                'AutoTTL: updating feed %d (%s, last update %s, dynamic TTL %ds)',
                 $feed->id(),
                 $feed->name(),
                 date('r', $feed->lastUpdate()),
                 $ttl,
             )
         );
+
+        // Feed 更新后，清除缓存以便下次重新分析
+        $this->getStats()->clearCache($feed->id());
 
         return $feed;
     }

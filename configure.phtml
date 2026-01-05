@@ -69,24 +69,84 @@ $now = time();
 	<table>
 		<thead>
 			<th>Feed</th>
-			<th>Average TTL in last 30d</th>
-			<th>Adjusted update TTL</th>
+			<th>Data Quality</th>
+			<th>Simple Avg TTL</th>
+			<th>Dynamic TTL (Current)</th>
+			<th>Active Hours</th>
+			<th>Weekday/Weekend</th>
 			<th>Last update</th>
 			<th>Time until next update</th>
 		</thead>
 		<tbody>
 		<?php foreach ($feedsUsingAutoTTL as $feed) { ?>
-		<?php $adjustedTTL = $this->getStats()->calcAdjustedTTL($feed->avgTTL); ?>
+		<?php
+			$pattern = $this->getStats()->getFeedPattern($feed->id);
+			$dynamicTTL = $this->getStats()->getDynamicTTL($feed->id);
+			$adjustedTTL = $this->getStats()->calcAdjustedTTL($feed->avgTTL);
+		?>
 		<tr>
 			<td>
 				<a class="configure" target="_blank" href="<?= _url('subscription', 'feed', 'id', $feed->id) ?>" title="<?= _t('gen.action.manage') ?>"><?= _i('configure') ?></a>
 				<?= htmlspecialchars($feed->name, ENT_NOQUOTES, 'UTF-8') ?>
 			</td>
 			<td>
-				<?= ($feed->avgTTL > 0) ? $this->getStats()->humanIntervalFromSeconds($feed->avgTTL) : 'not enough data' ?>
+				<?php if ($pattern) { ?>
+					<?php if ($pattern->hasEnoughData) { ?>
+						<span title="Full analysis available">✓ Full</span><br>
+						<small><?= $pattern->totalEntries ?> entries, <?= $pattern->daysCovered ?> days</small>
+					<?php } else { ?>
+						<span title="Limited data, using simple average">⚠ Limited</span><br>
+						<small><?= $pattern->totalEntries ?> entries, <?= $pattern->daysCovered ?> days</small>
+					<?php } ?>
+				<?php } else { ?>
+					<span title="No data available">— No data</span>
+				<?php } ?>
 			</td>
 			<td>
-				<?= $this->getStats()->humanIntervalFromSeconds($adjustedTTL) ?>
+				<?= ($feed->avgTTL > 0) ? $this->getStats()->humanIntervalFromSeconds($feed->avgTTL) : 'N/A' ?>
+			</td>
+			<td>
+				<?php if ($pattern && $pattern->hasEnoughData) { ?>
+					<strong><?= $this->getStats()->humanIntervalFromSeconds($dynamicTTL) ?></strong>
+					<?php if ($dynamicTTL != $adjustedTTL) { ?>
+						<br><small>(vs <?= $this->getStats()->humanIntervalFromSeconds($adjustedTTL) ?>)</small>
+					<?php } ?>
+				<?php } else { ?>
+					<?= $this->getStats()->humanIntervalFromSeconds($adjustedTTL) ?>
+				<?php } ?>
+			</td>
+			<td>
+				<?php if ($pattern && !empty($pattern->hourDensity)) { ?>
+					<?php
+						$activeHours = $this->getStats()->getMostActiveHours($pattern);
+						if (!empty($activeHours)) {
+							$hourStrs = [];
+							foreach ($activeHours as $ah) {
+								$hourStrs[] = sprintf('%02d:00', $ah['hour']);
+							}
+							echo implode(', ', $hourStrs);
+							echo '<br><small>density: ' . number_format($activeHours[0]['density'], 2) . '</small>';
+						} else {
+							echo '—';
+						}
+					?>
+				<?php } else { ?>
+					—
+				<?php } ?>
+			</td>
+			<td>
+				<?php if ($pattern) { ?>
+					<?php if ($pattern->weekdayInterval > 0) { ?>
+						<strong>WD:</strong> <?= $this->getStats()->humanIntervalFromSeconds((int)$pattern->weekdayInterval) ?><br>
+					<?php } ?>
+					<?php if ($pattern->hasWeekendUpdates && $pattern->weekendInterval > 0) { ?>
+						<strong>WE:</strong> <?= $this->getStats()->humanIntervalFromSeconds((int)$pattern->weekendInterval) ?>
+					<?php } elseif (!$pattern->hasWeekendUpdates) { ?>
+						<strong>WE:</strong> <em>None</em>
+					<?php } ?>
+				<?php } else { ?>
+					—
+				<?php } ?>
 			</td>
 			<td>
 				<?= ($feed->lastUpdate > 0) ? $this->getStats()->humanIntervalFromSeconds($now - $feed->lastUpdate).' ago' : 'never' ?>
@@ -94,12 +154,12 @@ $now = time();
 			<td>
 				<?php
                     if ($feed->lastUpdate > 0) {
-                        $timeUntil = $feed->lastUpdate + $adjustedTTL - $now;
+                        $timeUntil = $feed->lastUpdate + $dynamicTTL - $now;
                         if ($timeUntil > 0) {
                             $interval = $this->getStats()->humanIntervalFromSeconds($timeUntil);
                             echo $interval;
                         } else {
-                            echo 'pending';
+                            echo '<strong>pending</strong>';
                         }
                     } else {
                         echo 'never updated';
