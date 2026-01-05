@@ -1,5 +1,7 @@
 # FreshRSS-AutoTTL-Improved extension
 
+[查看中文版本](README.cn.md)
+
 > **Note**: This is an improved version based on [mgnsk/FreshRSS-AutoTTL](https://github.com/mgnsk/FreshRSS-AutoTTL), with enhanced intelligent dynamic TTL calculation features.
 
 An enhanced FreshRSS extension for intelligent automatic feed refresh TTL calculation. It analyzes feed update patterns by time slots, weekday/weekend differences, and update intervals to dynamically optimize refresh frequency.
@@ -9,7 +11,7 @@ An enhanced FreshRSS extension for intelligent automatic feed refresh TTL calcul
 This version adds the following enhancements over the original:
 
 - **Time Slot Analysis**: Identifies the most active update hours (0-23) for each feed
-- **Weekday/Weekend Pattern Recognition**: Automatically detects and adapts to different update patterns between weekdays and weekends
+- **Day of Week Pattern Recognition**: Automatically detects and adapts to different update patterns for each day of the week (Monday through Sunday), based on actual data without assumptions
 - **Dynamic Interval Analysis**: Analyzes update interval variations across different time periods
 - **Intelligent Degradation**: Falls back to simple averaging when data is insufficient
 - **Smoothing Algorithm**: Prevents TTL value fluctuations for stable refresh behavior
@@ -21,9 +23,81 @@ The extension analyzes three key characteristics of feed updates:
 
 1. **Update Time Concentration**: Identifies which hours of the day have the most frequent updates
 2. **Dynamic Interval Differences**: Analyzes how update intervals vary across different time periods
-3. **Weekday/Weekend Features**: Distinguishes update patterns between weekdays and weekends
+3. **Day of Week Features**: Distinguishes update patterns for each day of the week (Monday through Sunday)
 
 Based on this analysis, it calculates a dynamic TTL that adapts to the current time, ensuring feeds are refreshed at optimal intervals.
+
+## TTL Calculation Logic
+
+### Phase 1: Data Collection and Analysis
+
+1. **Data Retrieval**
+   - Fetch feed entry data from the database for the last 30 days
+   - Sort entries chronologically and calculate time intervals between adjacent entries
+
+2. **Data Quality Assessment**
+   - **Insufficient data** (< 10 entries): Use simple average interval = (last time - first time) / (entry count - 1)
+   - **Sufficient data** (>= 30 entries and >= 7 days): Perform comprehensive multi-dimensional analysis
+
+3. **Pattern Analysis** (when data is sufficient)
+   - **Time slot analysis**: Count update frequency and calculate average intervals for each hour (0-23)
+   - **Day of week analysis**: Calculate average update intervals for each day of the week (Sunday=0, Monday=1, ..., Saturday=6)
+   - **Update density**: Calculate update density for each time slot = update count / days covered
+
+### Phase 2: Dynamic TTL Calculation
+
+When calculating TTL, dynamically compute based on current time:
+
+1. **Base Interval Determination** (`baseInterval`)
+   - Prefer using the average interval of the current time slot (if data exists)
+   - If current time slot has no data, use the average of all time slots
+   - If all time slots have no data, use simple average interval
+
+2. **Day of Week Adjustment**
+   - If the current day of week has actual update data, use that day's average interval
+   - If the current day of week has no data, use the average of other days with data
+   - **Important**: Completely based on actual data, no assumptions (e.g., "weekend update frequency halved")
+
+3. **Hour Density Weighting** (`hourWeight`)
+   - Calculate the ratio of current time slot's update density relative to average density
+   - Higher density results in lower weight (more frequent updates, shorter TTL)
+   - Weight is limited between 0.5 and 2.0
+
+4. **TTL Calculation**
+   ```
+   dynamicTTL = baseInterval * hourWeight
+   ```
+
+### Phase 3: Smoothing and Boundary Constraints
+
+1. **Smoothing**
+   - To prevent TTL value fluctuations, use exponential smoothing algorithm
+   - New TTL = Old TTL × 0.7 + Newly calculated TTL × 0.3
+
+2. **Boundary Constraints**
+   - Minimum value: `defaultTTL` (system default TTL)
+   - Maximum value: `maxTTL` (configured maximum TTL)
+   - Final TTL value is constrained within this range
+
+### Phase 4: Caching Mechanism
+
+- **Pattern cache**: Analysis results cached for 1 hour to avoid frequent re-analysis
+- **TTL cache**: Calculated TTL cached for 5 minutes to improve response speed
+- Cache automatically cleared after feed updates to ensure latest data is used
+
+### Calculation Example
+
+Assume a feed's historical data:
+- Monday to Friday average update interval: 2 hours
+- Saturday and Sunday average update interval: 6 hours
+- Current time: Wednesday 14:00 (Wednesday has data, 14:00 time slot has data)
+
+Calculation process:
+1. Use Wednesday's average interval: 2 hours = 7200 seconds
+2. 14:00 time slot density weighting: assume weight is 1.0
+3. TTL = 7200 × 1.0 = 7200 seconds (2 hours)
+4. Smoothing (if old value exists)
+5. Boundary constraints (ensure within defaultTTL and maxTTL range)
 
 # Configuration
 
@@ -37,7 +111,7 @@ Feeds that use the default TTL are updated at an interval between the default an
 For example with default TTL of `1h` and max TTL of `1d`, a feed is updated at least once per day but no more often than once per hour, with the exact interval intelligently calculated based on:
 - The feed's historical update patterns
 - Current time of day (active hours)
-- Whether it's a weekday or weekend
+- Current day of the week (Monday through Sunday)
 - Update interval variations
 
 ## Statistics Dashboard
@@ -48,7 +122,7 @@ The extension provides a comprehensive statistics dashboard showing:
 - **Simple Avg TTL**: Traditional average TTL calculation (for comparison)
 - **Dynamic TTL (Current)**: Real-time calculated TTL based on current time and patterns
 - **Active Hours**: Top 3 most active update hours for each feed
-- **Weekday/Weekend**: Separate update intervals for weekdays and weekends
+- **Day of Week Pattern**: Update intervals for each day of the week (Sun, Mon, Tue, Wed, Thu, Fri, Sat) based on actual data
 - **Last Update & Next Update**: Timing information for feed refreshes
 
 ![Screenshot 2024-10-17 at 16-42-11 AutoTTL · Extensions · FreshRSS](https://github.com/user-attachments/assets/ba712811-d65b-4cd7-ba91-c8cba5c40d64)
@@ -80,7 +154,7 @@ Run `docker compose exec freshrss php /var/www/FreshRSS/app/actualize_script.php
 ## Credits
 
 - Original extension: [mgnsk/FreshRSS-AutoTTL](https://github.com/mgnsk/FreshRSS-AutoTTL)
-- This improved version adds intelligent dynamic TTL calculation with time slot analysis, weekday/weekend pattern recognition, and enhanced statistics visualization.
+- This improved version adds intelligent dynamic TTL calculation with time slot analysis, day-of-week pattern recognition (based on actual data without assumptions), and enhanced statistics visualization.
 
 ## License
 
