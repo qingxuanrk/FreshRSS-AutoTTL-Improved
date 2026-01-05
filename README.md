@@ -125,7 +125,7 @@ The extension provides a comprehensive statistics dashboard showing:
 - **Day of Week Pattern**: Update intervals for each day of the week (Sun, Mon, Tue, Wed, Thu, Fri, Sat) based on actual data
 - **Last Update & Next Update**: Timing information for feed refreshes
 
-![Screenshot 2024-10-17 at 16-42-11 AutoTTL · Extensions · FreshRSS](https://github.com/user-attachments/assets/ba712811-d65b-4cd7-ba91-c8cba5c40d64)
+![Screenshot FreshRSS-AutoTTL-Improved · Extensions · FreshRSS](https://github.com/user-attachments/assets/66545901-ae62-4153-8ff6-42601cde0e0a)
 
 # Testing
 

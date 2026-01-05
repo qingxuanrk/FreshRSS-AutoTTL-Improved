@@ -125,7 +125,7 @@
 - **星期几模式**: 每周各天（周日、周一、周二、周三、周四、周五、周六）的更新间隔，基于实际数据
 - **最后更新和下次更新**: Feed 刷新的时间信息
 
-![Screenshot 2024-10-17 at 16-42-11 AutoTTL · Extensions · FreshRSS](https://github.com/user-attachments/assets/ba712811-d65b-4cd7-ba91-c8cba5c40d64)
+![Screenshot FreshRSS-AutoTTL-Improved · Extensions · FreshRSS](https://github.com/user-attachments/assets/66545901-ae62-4153-8ff6-42601cde0e0a)
 
 # 测试
 
