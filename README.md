@@ -29,6 +29,8 @@ Based on this analysis, it calculates a dynamic TTL that adapts to the current t
 
 ## TTL Calculation Logic
 
+> **Note on Timezone**: Time analysis uses the timezone configured in FreshRSS user settings. If no timezone is configured in FreshRSS, it falls back to the server's default timezone (PHP's `date_default_timezone_get()`). The extension uses Unix timestamps from the database and converts them to local time using the configured timezone for hour and day-of-week analysis.
+
 ### Phase 1: Data Collection and Analysis
 
 1. **Data Retrieval**

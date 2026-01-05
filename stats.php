@@ -86,6 +86,61 @@ class AutoTTLStats extends Minz_ModelPdo
         $this->statsCount = $statsCount;
     }
 
+    /**
+     * 获取 FreshRSS 的时区配置
+     *
+     * @return DateTimeZone|null 时区对象，如果无法获取则返回 null
+     */
+    private function getTimezone(): ?\DateTimeZone
+    {
+        try {
+            // 尝试从 FreshRSS 用户配置获取时区
+            if (class_exists('FreshRSS_Context')) {
+                try {
+                    $userConf = FreshRSS_Context::userConf();
+                    if ($userConf !== null) {
+                        $timezone = $userConf->timezone ?? null;
+                        if ($timezone && $timezone !== '') {
+                            return new \DateTimeZone($timezone);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // FreshRSS_Context::userConf() 可能抛出异常，继续使用默认时区
+                }
+            }
+        } catch (\Exception $e) {
+            // 如果时区无效，继续使用默认时区
+        }
+
+        // 如果无法获取 FreshRSS 时区，使用服务器默认时区
+        try {
+            $defaultTimezone = date_default_timezone_get();
+            if ($defaultTimezone) {
+                return new \DateTimeZone($defaultTimezone);
+            }
+        } catch (\Exception $e) {
+            // 如果默认时区也无效，返回 null（将使用 UTC）
+        }
+
+        return null;
+    }
+
+    /**
+     * 创建带时区的 DateTime 对象
+     *
+     * @param  int $timestamp Unix 时间戳
+     * @return DateTime DateTime 对象
+     */
+    private function createDateTime(int $timestamp): \DateTime
+    {
+        $dt = new \DateTime('@' . $timestamp);
+        $timezone = $this->getTimezone();
+        if ($timezone !== null) {
+            $dt->setTimezone($timezone);
+        }
+        return $dt;
+    }
+
     public function calcAdjustedTTL(int $avgTTL): int
     {
         if ($this->defaultTTL > $this->maxTTL) {
@@ -220,7 +275,7 @@ SQL;
 
         foreach ($entries as $i => $timestamp) {
             $timestamp = (int)$timestamp;
-            $dt = new DateTime('@' . $timestamp);
+            $dt = $this->createDateTime($timestamp);
             $hour = (int)$dt->format('G');  // 0-23
             $dayOfWeek = (int)$dt->format('w');  // 0=Sunday, 6=Saturday
             $dateStr = $dt->format('Y-m-d');
@@ -301,7 +356,7 @@ SQL;
             return $this->maxTTL;
         }
 
-        $dt = new DateTime('@' . $currentTime);
+        $dt = $this->createDateTime($currentTime);
         $currentHour = (int)$dt->format('G');
         $dayOfWeek = (int)$dt->format('w');  // 0=Sunday, 1=Monday, ..., 6=Saturday
 
