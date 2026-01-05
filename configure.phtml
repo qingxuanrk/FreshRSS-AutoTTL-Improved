@@ -73,7 +73,7 @@ $now = time();
 			<th>Simple Avg TTL</th>
 			<th>Dynamic TTL (Current)</th>
 			<th>Active Hours</th>
-			<th>Weekday/Weekend</th>
+			<th>Day of Week Pattern</th>
 			<th>Last update</th>
 			<th>Time until next update</th>
 		</thead>
@@ -135,15 +135,28 @@ $now = time();
 				<?php } ?>
 			</td>
 			<td>
-				<?php if ($pattern) { ?>
-					<?php if ($pattern->weekdayInterval > 0) { ?>
-						<strong>WD:</strong> <?= $this->getStats()->humanIntervalFromSeconds((int)$pattern->weekdayInterval) ?><br>
-					<?php } ?>
-					<?php if ($pattern->hasWeekendUpdates && $pattern->weekendInterval > 0) { ?>
-						<strong>WE:</strong> <?= $this->getStats()->humanIntervalFromSeconds((int)$pattern->weekendInterval) ?>
-					<?php } elseif (!$pattern->hasWeekendUpdates) { ?>
-						<strong>WE:</strong> <em>None</em>
-					<?php } ?>
+				<?php if ($pattern && !empty($pattern->dayOfWeekInterval)) { ?>
+					<?php
+						$dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+						$hasAnyData = false;
+						foreach ($dayNames as $dow => $dayName) {
+							if (isset($pattern->dayOfWeekHasUpdates[$dow]) 
+								&& $pattern->dayOfWeekHasUpdates[$dow] 
+								&& isset($pattern->dayOfWeekInterval[$dow]) 
+								&& $pattern->dayOfWeekInterval[$dow] > 0
+							) {
+								if ($hasAnyData) {
+									echo '<br>';
+								}
+								echo '<strong>' . $dayName . ':</strong> ' . 
+									$this->getStats()->humanIntervalFromSeconds((int)$pattern->dayOfWeekInterval[$dow]);
+								$hasAnyData = true;
+							}
+						}
+						if (!$hasAnyData) {
+							echo '<em>No data</em>';
+						}
+					?>
 				<?php } else { ?>
 					—
 				<?php } ?>
@@ -181,11 +194,15 @@ $now = time();
 			<th>Feed</th>
 			<th>Average TTL</th>
 			<th>Update TTL</th>
+			<th>Day of Week Pattern</th>
 			<th>Last update</th>
 			<th>Time until next update</th>
 		</thead>
 		<tbody>
 		<?php foreach ($feedsNotUsingAutoTTL as $feed) { ?>
+		<?php
+			$pattern = $this->getStats()->getFeedPattern($feed->id);
+		?>
 		<tr>
 			<td>
 				<a class="configure" target="_blank" href="<?= _url('subscription', 'feed', 'id', $feed->id) ?>" title="<?= _t('gen.action.manage') ?>"><?= _i('configure') ?></a>
@@ -196,6 +213,33 @@ $now = time();
 			</td>
 			<td>
 				<?= $this->getStats()->humanIntervalFromSeconds($feed->ttl) ?>
+			</td>
+			<td>
+				<?php if ($pattern && !empty($pattern->dayOfWeekInterval)) { ?>
+					<?php
+						$dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+						$hasAnyData = false;
+						foreach ($dayNames as $dow => $dayName) {
+							if (isset($pattern->dayOfWeekHasUpdates[$dow]) 
+								&& $pattern->dayOfWeekHasUpdates[$dow] 
+								&& isset($pattern->dayOfWeekInterval[$dow]) 
+								&& $pattern->dayOfWeekInterval[$dow] > 0
+							) {
+								if ($hasAnyData) {
+									echo '<br>';
+								}
+								echo '<strong>' . $dayName . ':</strong> ' . 
+									$this->getStats()->humanIntervalFromSeconds((int)$pattern->dayOfWeekInterval[$dow]);
+								$hasAnyData = true;
+							}
+						}
+						if (!$hasAnyData) {
+							echo '<em>No data</em>';
+						}
+					?>
+				<?php } else { ?>
+					—
+				<?php } ?>
 			</td>
 			<td>
 				<?= ($feed->lastUpdate > 0) ? $this->getStats()->humanIntervalFromSeconds($now - $feed->lastUpdate).' ago' : 'never' ?>

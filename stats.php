@@ -31,10 +31,9 @@ class FeedUpdatePattern
     public array $hourDensity = [];      // 每个时段的更新密度
     public array $hourInterval = [];     // 每个时段的平均间隔
 
-    // 工作日/周末模式
-    public float $weekdayInterval = 0;    // 工作日平均间隔
-    public float $weekendInterval = 0;     // 周末平均间隔
-    public bool $hasWeekendUpdates = false; // 周末是否有更新
+    // 星期几模式（0=周日, 1=周一, ..., 6=周六）
+    public array $dayOfWeekInterval = []; // 每个星期几的平均间隔 [0-6]
+    public array $dayOfWeekHasUpdates = []; // 每个星期几是否有更新 [0-6]
 
     // 统计信息
     public int $totalEntries = 0;         // 总条目数
@@ -209,8 +208,15 @@ SQL;
 
         // PHP 端处理时间分析
         $hourStats = [];
-        $dayStats = ['weekday' => [], 'weekend' => []];
+        $dayStats = []; // 按星期几（0-6）分别统计
         $uniqueDates = [];
+
+        // 初始化星期几统计数组
+        for ($dow = 0; $dow <= 6; $dow++) {
+            $dayStats[$dow] = [];
+            $pattern->dayOfWeekInterval[$dow] = 0;
+            $pattern->dayOfWeekHasUpdates[$dow] = false;
+        }
 
         foreach ($entries as $i => $timestamp) {
             $timestamp = (int)$timestamp;
@@ -236,10 +242,8 @@ SQL;
                 if ($interval > 0) {
                     $hourStats[$hour]['intervals'][] = $interval;
 
-                    // 按工作日/周末分类
-                    $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
-                    $key = $isWeekend ? 'weekend' : 'weekday';
-                    $dayStats[$key][] = $interval;
+                    // 按星期几分类（0=周日, 1=周一, ..., 6=周六）
+                    $dayStats[$dayOfWeek][] = $interval;
                 }
             }
         }
@@ -259,18 +263,12 @@ SQL;
             $pattern->hourDensity[$hour] = $stats['count'] / max(1, $pattern->daysCovered);
         }
 
-        // 计算工作日/周末平均间隔
-        if (count($dayStats['weekday']) > 0) {
-            $pattern->weekdayInterval = array_sum($dayStats['weekday']) / count($dayStats['weekday']);
-        }
-        if (count($dayStats['weekend']) > 0) {
-            $pattern->weekendInterval = array_sum($dayStats['weekend']) / count($dayStats['weekend']);
-            $pattern->hasWeekendUpdates = true;
-        }
-
-        // 如果没有周末数据，使用工作日数据作为默认值
-        if (!$pattern->hasWeekendUpdates && $pattern->weekdayInterval > 0) {
-            $pattern->weekendInterval = $pattern->weekdayInterval * 2; // 周末假设更新频率减半
+        // 计算每个星期几的平均间隔（基于实际数据）
+        for ($dow = 0; $dow <= 6; $dow++) {
+            if (count($dayStats[$dow]) > 0) {
+                $pattern->dayOfWeekInterval[$dow] = array_sum($dayStats[$dow]) / count($dayStats[$dow]);
+                $pattern->dayOfWeekHasUpdates[$dow] = true;
+            }
         }
 
         // 计算简单平均间隔（用于降级）
@@ -305,8 +303,7 @@ SQL;
 
         $dt = new DateTime('@' . $currentTime);
         $currentHour = (int)$dt->format('G');
-        $dayOfWeek = (int)$dt->format('w');
-        $isWeekend = ($dayOfWeek == 0 || $dayOfWeek == 6);
+        $dayOfWeek = (int)$dt->format('w');  // 0=Sunday, 1=Monday, ..., 6=Saturday
 
         // 获取当前时段的平均间隔
         $baseInterval = $pattern->hourInterval[$currentHour] ?? 0;
@@ -321,21 +318,28 @@ SQL;
             }
         }
 
-        // 工作日/周末调整
-        $dayAdjustment = 0;
-        if ($isWeekend) {
-            if ($pattern->hasWeekendUpdates && $pattern->weekendInterval > 0) {
-                // 使用周末间隔
-                $baseInterval = $pattern->weekendInterval;
-            } else {
-                // 周末不更新，延长 TTL
-                $dayAdjustment = 0.5; // 增加 50%
-            }
+        // 根据当前是星期几，使用对应的平均间隔（基于实际数据）
+        if (isset($pattern->dayOfWeekHasUpdates[$dayOfWeek])
+            && $pattern->dayOfWeekHasUpdates[$dayOfWeek]
+            && isset($pattern->dayOfWeekInterval[$dayOfWeek])
+            && $pattern->dayOfWeekInterval[$dayOfWeek] > 0
+        ) {
+            // 如果当前星期几有实际数据，使用该星期几的平均间隔
+            $baseInterval = $pattern->dayOfWeekInterval[$dayOfWeek];
         } else {
-            if ($pattern->weekdayInterval > 0) {
-                // 使用工作日间隔
-                $baseInterval = $pattern->weekdayInterval;
+            // 如果当前星期几没有数据，使用有数据的其他星期几的平均值
+            $validDayIntervals = array_filter(
+                $pattern->dayOfWeekInterval,
+                function ($interval, $dow) use ($pattern) {
+                    return $interval > 0 && $pattern->dayOfWeekHasUpdates[$dow];
+                },
+                ARRAY_FILTER_USE_BOTH
+            );
+
+            if (count($validDayIntervals) > 0) {
+                $baseInterval = array_sum($validDayIntervals) / count($validDayIntervals);
             }
+            // 如果所有星期几都没有数据，保持使用小时间隔或简单平均间隔
         }
 
         // 小时密度加权
@@ -354,8 +358,8 @@ SQL;
             }
         }
 
-        // 计算动态 TTL
-        $dynamicTTL = $baseInterval * (1 + $dayAdjustment) * $hourWeight;
+        // 计算动态 TTL（基于实际数据，不再需要 dayAdjustment）
+        $dynamicTTL = $baseInterval * $hourWeight;
 
         return (int)max($this->defaultTTL, $dynamicTTL);
     }
@@ -491,9 +495,9 @@ SQL;
         $results = [];
 
         if ($interval->y === 1) {
-            $results[] = "{$interval->y} year";
+            $results[] = "{$interval->y} y";
         } elseif ($interval->y > 1) {
-            $results[] = "{$interval->y} years";
+            $results[] = "{$interval->y} y";
         }
 
         if ($interval->m === 1) {
@@ -503,25 +507,25 @@ SQL;
         }
 
         if ($interval->d === 1) {
-            $results[] = "{$interval->d} day";
+            $results[] = "{$interval->d} d";
         } elseif ($interval->d > 1) {
-            $results[] = "{$interval->d} days";
+            $results[] = "{$interval->d} d";
         }
 
         if ($interval->h === 1) {
-            $results[] = "{$interval->h} hour";
+            $results[] = "{$interval->h} h";
         } elseif ($interval->h > 1) {
-            $results[] = "{$interval->h} hours";
+            $results[] = "{$interval->h} h";
         }
 
         if ($interval->i === 1) {
-            $results[] = "{$interval->i} minute";
+            $results[] = "{$interval->i} min";
         } elseif ($interval->i > 1) {
-            $results[] = "{$interval->i} minutes";
+            $results[] = "{$interval->i} min";
         } elseif ($interval->i === 0 && $interval->s === 1) {
-            $results[] = "{$interval->s} second";
+            $results[] = "{$interval->s} sec";
         } elseif ($interval->i === 0 && $interval->s > 1) {
-            $results[] = "{$interval->s} seconds";
+            $results[] = "{$interval->s} sec";
         }
 
         return implode(' ', $results);
